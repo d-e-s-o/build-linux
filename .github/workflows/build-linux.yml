@@ -18,6 +18,11 @@ on:
         description: 'Path to the kernel configuration to use.'
         required: true
         type: string
+      vmlinux:
+        description: 'Whether to include vmlinux in the artifacts.'
+        default: false
+        required: false
+        type: boolean
     outputs:
       kernel-artifact-url:
         description: "URL of the built (and uploaded) Linux kernel"
@@ -30,12 +35,25 @@ jobs:
     outputs:
       kernel-artifact-id: ${{ steps.upload-linux-kernel.outputs.artifact-id }}
     steps:
+      - id: configure
+        run: |
+          echo "paths<<EOF" >> $GITHUB_OUTPUT
+          echo "build/bzImage" >> $GITHUB_OUTPUT
+          if [ "${{ inputs.vmlinux }}" = "true" ]; then
+            echo "build/vmlinux" >> $GITHUB_OUTPUT
+          fi
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          if [ "${{ inputs.vmlinux }}" = "true" ]; then
+            echo "targets=bzImage vmlinux" >> $GITHUB_OUTPUT
+          else
+            echo "targets=bzImage" >> $GITHUB_OUTPUT
+          fi
       - uses: actions/checkout@v6
       - uses: actions/cache/restore@v4
         id: restore-cached-kernel
         with:
-          path: |
-            build/bzImage
+          path: ${{ steps.configure.outputs.paths }}
           key: linux-kernel-${{ inputs.rev }}-${{ hashFiles(inputs.config) }}
       - if: steps.restore-cached-kernel.outputs.cache-hit != 'true'
         uses: actions/checkout@v6
@@ -66,15 +84,14 @@ jobs:
           cat "${KBUILD_OUTPUT}/.config"
           echo "::endgroup::"
 
-          make O="${KBUILD_OUTPUT}" --jobs $(($(nproc) * 2)) bzImage
+          make O="${KBUILD_OUTPUT}" --jobs $(($(nproc) * 2)) ${{ steps.configure.outputs.targets }}
 
           popd
           mv build/arch/x86/boot/bzImage build/
       - if: steps.restore-cached-kernel.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
-          path: |
-            build/bzImage
+          path: ${{ steps.configure.outputs.paths }}
           key: linux-kernel-${{ inputs.rev }}-${{ hashFiles(inputs.config) }}
       - uses: actions/upload-artifact@v5
         id: upload-linux-kernel
@@ -86,5 +103,4 @@ jobs:
           if-no-files-found: error
           # The kernel image is already compressed.
           compression-level: 0
-          path: |
-            build/bzImage
+          path: ${{ steps.configure.outputs.paths }}
