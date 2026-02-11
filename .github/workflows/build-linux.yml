@@ -23,6 +23,11 @@ on:
         default: false
         required: false
         type: boolean
+      modules:
+        description: 'Whether to include kernel modules in the artifacts.'
+        default: false
+        required: false
+        type: boolean
     outputs:
       kernel-artifact-url:
         description: "URL of the built (and uploaded) Linux kernel"
@@ -42,13 +47,19 @@ jobs:
           if [ "${{ inputs.vmlinux }}" = "true" ]; then
             echo "build/vmlinux" >> $GITHUB_OUTPUT
           fi
+          if [ "${{ inputs.modules }}" = "true" ]; then
+            echo "build/modules" >> $GITHUB_OUTPUT
+          fi
           echo "EOF" >> $GITHUB_OUTPUT
 
+          targets="bzImage"
           if [ "${{ inputs.vmlinux }}" = "true" ]; then
-            echo "targets=bzImage vmlinux" >> $GITHUB_OUTPUT
-          else
-            echo "targets=bzImage" >> $GITHUB_OUTPUT
+            targets="${targets} vmlinux"
           fi
+          if [ "${{ inputs.modules }}" = "true" ]; then
+            targets="${targets} modules"
+          fi
+          echo "targets=${targets}" >> $GITHUB_OUTPUT
       - uses: actions/checkout@v6
       - uses: actions/cache/restore@v4
         id: restore-cached-kernel
@@ -88,6 +99,11 @@ jobs:
 
           popd
           mv build/arch/x86/boot/bzImage build/
+          if [ "${{ inputs.modules }}" = "true" ]; then
+            pushd build/
+            find . -path ./ -prune -o -name '*.ko' -print0 | xargs -0 -I{} install -D {} modules/{}
+            popd
+          fi
       - if: steps.restore-cached-kernel.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
