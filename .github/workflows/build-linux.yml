@@ -42,16 +42,6 @@ jobs:
     steps:
       - id: configure
         run: |
-          echo "paths<<EOF" >> $GITHUB_OUTPUT
-          echo "build/bzImage" >> $GITHUB_OUTPUT
-          if [ "${{ inputs.vmlinux }}" = "true" ]; then
-            echo "build/vmlinux" >> $GITHUB_OUTPUT
-          fi
-          if [ "${{ inputs.modules }}" = "true" ]; then
-            echo "build/modules" >> $GITHUB_OUTPUT
-          fi
-          echo "EOF" >> $GITHUB_OUTPUT
-
           targets="bzImage"
           if [ "${{ inputs.vmlinux }}" = "true" ]; then
             targets="${targets} vmlinux"
@@ -64,7 +54,7 @@ jobs:
       - uses: actions/cache/restore@v4
         id: restore-cached-kernel
         with:
-          path: ${{ steps.configure.outputs.paths }}
+          path: build/
           key: linux-kernel-${{ inputs.rev }}-${{ hashFiles(inputs.config) }}
       - if: steps.restore-cached-kernel.outputs.cache-hit != 'true'
         uses: actions/checkout@v6
@@ -83,10 +73,11 @@ jobs:
         name: Build kernel
         run: |
           config=$(readlink --canonicalize-existing ${{ inputs.config }})
-          build=$(pwd)/build/
+          build=$(pwd)/build
+          kbuild=$(pwd)/kbuild
 
           pushd linux/
-          export KBUILD_OUTPUT="${build}"
+          export KBUILD_OUTPUT="${kbuild}"
           mkdir "${KBUILD_OUTPUT}"
 
           KCONFIG_ALLCONFIG="${config}" make O="${KBUILD_OUTPUT}" allnoconfig
@@ -95,19 +86,25 @@ jobs:
           cat "${KBUILD_OUTPUT}/.config"
           echo "::endgroup::"
 
-          make O="${KBUILD_OUTPUT}" --jobs $(($(nproc) * 2)) ${{ steps.configure.outputs.targets }}
+          mkdir "${build}"
+          make O="${KBUILD_OUTPUT}" \
+            --jobs $(($(nproc) * 2)) ${{ steps.configure.outputs.targets }}
 
-          popd
-          mv build/arch/x86/boot/bzImage build/
-          if [ "${{ inputs.modules }}" = "true" ]; then
-            pushd build/
-            find . -path ./ -prune -o -name '*.ko' -print0 | xargs -0 -I{} install -D {} modules/{}
-            popd
+          if [ "${{ inputs.vmlinux }}" = "true" ]; then
+            make O="${KBUILD_OUTPUT}" INSTALL_PATH="${build}/boot" install
+            cp "${KBUILD_OUTPUT}/vmlinux" "${build}/boot/vmlinux-$(make O="${KBUILD_OUTPUT}" -s kernelrelease)"
           fi
+          if [ "${{ inputs.modules }}" = "true" ]; then
+            make O="${KBUILD_OUTPUT}" INSTALL_MOD_PATH="${build}" modules_install
+            rm -f "${build}/lib/modules"/*/build "${build}/lib/modules"/*/source
+          fi
+
+          cp "${KBUILD_OUTPUT}/arch/x86/boot/bzImage" "${build}/bzImage"
+          popd
       - if: steps.restore-cached-kernel.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
-          path: ${{ steps.configure.outputs.paths }}
+          path: build/
           key: linux-kernel-${{ inputs.rev }}-${{ hashFiles(inputs.config) }}
       - uses: actions/upload-artifact@v5
         id: upload-linux-kernel
@@ -119,4 +116,4 @@ jobs:
           if-no-files-found: error
           # The kernel image is already compressed.
           compression-level: 0
-          path: ${{ steps.configure.outputs.paths }}
+          path: build/
