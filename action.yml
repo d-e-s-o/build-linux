@@ -1,0 +1,112 @@
+name: Build Linux
+description: Build a Linux kernel from source with caching support.
+
+inputs:
+  kernel-repo:
+    description: 'The Linux kernel repository to use.'
+    default: 'torvalds/linux'
+    required: false
+  rev:
+    description: 'The revision to build at.'
+    # By default just use the default branch HEAD.
+    default: ''
+    required: false
+  config:
+    description: 'Path to the kernel configuration to use.'
+    required: true
+  vmlinux:
+    description: 'Whether to include vmlinux in the artifacts.'
+    default: 'false'
+    required: false
+  modules:
+    description: 'Whether to include kernel modules in the artifacts.'
+    default: 'false'
+    required: false
+
+outputs:
+  kernel-artifact-url:
+    description: "URL of the built (and uploaded) Linux kernel"
+    value: ${{ github.api_url }}/repos/${{ github.repository }}/actions/artifacts/${{ steps.upload-linux-kernel.outputs.artifact-id }}/zip
+
+runs:
+  using: composite
+  steps:
+    - id: configure
+      shell: bash
+      run: |
+        targets="bzImage"
+        if [ "${{ inputs.vmlinux }}" = "true" ]; then
+          targets="${targets} vmlinux"
+        fi
+        if [ "${{ inputs.modules }}" = "true" ]; then
+          targets="${targets} modules"
+        fi
+        echo "targets=${targets}" >> $GITHUB_OUTPUT
+    - uses: actions/cache/restore@v4
+      id: restore-cached-kernel
+      with:
+        path: build/
+        key: linux-kernel-${{ hashFiles(inputs.config) }}-${{ inputs.rev }}
+    - if: steps.restore-cached-kernel.outputs.cache-hit != 'true'
+      uses: actions/checkout@v6
+      with:
+        repository: ${{ inputs.kernel-repo }}
+        ref: ${{ inputs.rev }}
+        fetch-depth: 1
+        path: linux/
+    - if: steps.restore-cached-kernel.outputs.cache-hit != 'true'
+      name: Install required tools
+      shell: bash
+      run: |
+        sudo apt-get update
+        # `pahole` may be required, depending on the config in use.
+        sudo apt-get install --yes --no-install-recommends libelf-dev pahole
+    - if: steps.restore-cached-kernel.outputs.cache-hit != 'true'
+      name: Build kernel
+      shell: bash
+      run: |
+        config=$(readlink --canonicalize-existing ${{ inputs.config }})
+        build=$(pwd)/build
+        kbuild=$(pwd)/kbuild
+
+        pushd linux/
+        export KBUILD_OUTPUT="${kbuild}"
+        mkdir "${KBUILD_OUTPUT}"
+
+        KCONFIG_ALLCONFIG="${config}" make O="${KBUILD_OUTPUT}" allnoconfig
+
+        echo "::group::config"
+        cat "${KBUILD_OUTPUT}/.config"
+        echo "::endgroup::"
+
+        mkdir "${build}"
+        make O="${KBUILD_OUTPUT}" \
+          --jobs $(($(nproc) * 2)) ${{ steps.configure.outputs.targets }}
+
+        if [ "${{ inputs.vmlinux }}" = "true" ]; then
+          make O="${KBUILD_OUTPUT}" INSTALL_PATH="${build}/boot" install
+          cp "${KBUILD_OUTPUT}/vmlinux" "${build}/boot/vmlinux-$(make O="${KBUILD_OUTPUT}" -s kernelrelease)"
+        fi
+        if [ "${{ inputs.modules }}" = "true" ]; then
+          make O="${KBUILD_OUTPUT}" INSTALL_MOD_PATH="${build}" modules_install
+          rm -f "${build}/lib/modules"/*/build "${build}/lib/modules"/*/source
+        fi
+
+        cp "${KBUILD_OUTPUT}/arch/x86/boot/bzImage" "${build}/bzImage"
+        popd
+    - if: steps.restore-cached-kernel.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: build/
+        key: linux-kernel-${{ hashFiles(inputs.config) }}-${{ inputs.rev }}
+    - uses: actions/upload-artifact@v5
+      id: upload-linux-kernel
+      # TODO: Having a single path/name may be problematic should we
+      #       ever opt to reusing this action multiple times with
+      #       different inputs.
+      with:
+        name: linux-kernel
+        if-no-files-found: error
+        # The kernel image is already compressed.
+        compression-level: 0
+        path: build/
