@@ -42,7 +42,7 @@ runs:
           targets="${targets} modules"
         fi
         echo "targets=${targets}" >> $GITHUB_OUTPUT
-    - uses: actions/cache/restore@v4
+    - uses: actions/cache/restore@v5
       id: restore-cached-kernel
       with:
         path: build/
@@ -95,7 +95,7 @@ runs:
         cp "${KBUILD_OUTPUT}/arch/x86/boot/bzImage" "${build}/bzImage"
         popd
     - if: steps.restore-cached-kernel.outputs.cache-hit != 'true'
-      uses: actions/cache/save@v4
+      uses: actions/cache/save@v5
       with:
         path: build/
         key: linux-kernel-${{ hashFiles(inputs.config) }}-${{ inputs.rev }}
