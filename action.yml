@@ -100,7 +100,7 @@ runs:
         cat "${KBUILD_OUTPUT}/.config"
         echo "::endgroup::"
 
-        mkdir "${build}"
+        mkdir -p "${build}"
         make O="${KBUILD_OUTPUT}" \
           --jobs $(($(nproc) * 2)) ${{ steps.configure.outputs.targets }}
 
