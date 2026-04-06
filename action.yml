@@ -18,6 +18,10 @@ inputs:
     description: 'Whether to include vmlinux in the artifacts.'
     default: 'false'
     required: false
+  patches:
+    description: 'Newline-separated list of paths to patch files to apply (in order) on top of the checked-out kernel source.'
+    default: ''
+    required: false
   modules:
     description: 'Whether to include kernel modules in the artifacts.'
     default: 'false'
@@ -42,11 +46,18 @@ runs:
           targets="${targets} modules"
         fi
         echo "targets=${targets}" >> $GITHUB_OUTPUT
+
+        if [ -n "${{ inputs.patches }}" ]; then
+          patches_hash=$(echo "${{ inputs.patches }}" | sed '/^[[:space:]]*$/d' | tr '\n' '\0' | xargs -0 cat | sha256sum | cut -d' ' -f1)
+        else
+          patches_hash="no-patches"
+        fi
+        echo "patches-hash=${patches_hash}" >> $GITHUB_OUTPUT
     - uses: actions/cache/restore@v5
       id: restore-cached-kernel
       with:
         path: build/
-        key: linux-kernel-${{ hashFiles(inputs.config) }}-${{ inputs.rev }}
+        key: linux-kernel-${{ hashFiles(inputs.config) }}-${{ inputs.rev }}-${{ steps.configure.outputs.patches-hash }}
     - if: steps.restore-cached-kernel.outputs.cache-hit != 'true'
       uses: actions/checkout@v6
       with:
@@ -54,6 +65,16 @@ runs:
         ref: ${{ inputs.rev }}
         fetch-depth: 1
         path: linux/
+    - if: steps.restore-cached-kernel.outputs.cache-hit != 'true'
+      name: Apply patches
+      shell: bash
+      run: |
+        while IFS= read -r patch; do
+          [ -z "${patch}" ] && continue
+          patch=$(readlink --canonicalize-existing "${patch}")
+          echo "Applying ${patch}"
+          git -C linux/ apply "${patch}"
+        done <<< "${{ inputs.patches }}"
     - if: steps.restore-cached-kernel.outputs.cache-hit != 'true'
       name: Install required tools
       shell: bash
@@ -98,7 +119,7 @@ runs:
       uses: actions/cache/save@v5
       with:
         path: build/
-        key: linux-kernel-${{ hashFiles(inputs.config) }}-${{ inputs.rev }}
+        key: linux-kernel-${{ hashFiles(inputs.config) }}-${{ inputs.rev }}-${{ steps.configure.outputs.patches-hash }}
     - uses: actions/upload-artifact@v7
       id: upload-linux-kernel
       # TODO: Having a single path/name may be problematic should we
