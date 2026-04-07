@@ -47,17 +47,13 @@ runs:
         fi
         echo "targets=${targets}" >> $GITHUB_OUTPUT
 
-        if [ -n "${{ inputs.patches }}" ]; then
-          patches_hash=$(echo "${{ inputs.patches }}" | sed '/^[[:space:]]*$/d' | tr '\n' '\0' | xargs -0 cat | sha256sum | cut -d' ' -f1)
-        else
-          patches_hash="no-patches"
-        fi
-        echo "patches-hash=${patches_hash}" >> $GITHUB_OUTPUT
+        inputs_hash=$(echo "${{ hashFiles(inputs.config) }} ${{ inputs.rev }} ${{ hashFiles(inputs.patches) }} ${{ inputs.vmlinux }} ${{ inputs.modules }}" | sha256sum | cut -d' ' -f1)
+        echo "inputs-hash=${inputs_hash}" >> $GITHUB_OUTPUT
     - uses: actions/cache/restore@v5
       id: restore-cached-kernel
       with:
         path: build/
-        key: linux-kernel-${{ hashFiles(inputs.config) }}-${{ inputs.rev }}-${{ steps.configure.outputs.patches-hash }}
+        key: linux-kernel-${{ steps.configure.outputs.inputs-hash }}
     - if: steps.restore-cached-kernel.outputs.cache-hit != 'true'
       uses: actions/checkout@v6
       with:
@@ -119,7 +115,7 @@ runs:
       uses: actions/cache/save@v5
       with:
         path: build/
-        key: linux-kernel-${{ hashFiles(inputs.config) }}-${{ inputs.rev }}-${{ steps.configure.outputs.patches-hash }}
+        key: linux-kernel-${{ steps.configure.outputs.inputs-hash }}
     - uses: actions/upload-artifact@v7
       id: upload-linux-kernel
       # TODO: Having a single path/name may be problematic should we
