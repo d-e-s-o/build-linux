@@ -19,7 +19,7 @@ inputs:
     default: 'false'
     required: false
   patches:
-    description: 'Newline-separated list of paths to patch files to apply (in order) on top of the checked-out kernel source.'
+    description: 'Newline-separated list of paths or glob patterns for patches to apply on top of the checked-out kernel source.'
     default: ''
     required: false
   modules:
@@ -65,10 +65,20 @@ runs:
       name: Apply patches
       shell: bash
       run: |
-        while IFS= read -r patch; do
-          [ -z "${patch}" ] && continue
-          patch=$(readlink --canonicalize-existing "${patch}")
-          git -C linux/ -c user.name='build' -c user.email='build@localhost' am "${patch}"
+        # Ensure consistent ordering of patches.
+        LC_COLLATE=C
+        shopt -s nullglob
+        while IFS= read -r line; do
+          [ -z "${line}" ] && continue
+          files=( ${line} )
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "::error::Pattern '${line}' matched no files"
+            exit 1
+          fi
+          for patch in "${files[@]}"; do
+            patch=$(readlink --canonicalize-existing "${patch}")
+            git -C linux/ -c user.name='build' -c user.email='build@localhost' am "${patch}"
+          done
         done <<< "${{ inputs.patches }}"
     - if: steps.restore-cached-kernel.outputs.cache-hit != 'true'
       name: Install required tools
