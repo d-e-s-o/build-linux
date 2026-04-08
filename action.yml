@@ -68,8 +68,7 @@ runs:
         while IFS= read -r patch; do
           [ -z "${patch}" ] && continue
           patch=$(readlink --canonicalize-existing "${patch}")
-          echo "Applying ${patch}"
-          git -C linux/ apply "${patch}"
+          git -C linux/ -c user.name='build' -c user.email='build@localhost' am "${patch}"
         done <<< "${{ inputs.patches }}"
     - if: steps.restore-cached-kernel.outputs.cache-hit != 'true'
       name: Install required tools
