@@ -28,9 +28,9 @@ inputs:
     required: false
 
 outputs:
-  kernel-artifact-url:
-    description: "URL of the built (and uploaded) Linux kernel"
-    value: ${{ github.api_url }}/repos/${{ github.repository }}/actions/artifacts/${{ steps.upload-linux-kernel.outputs.artifact-id }}/zip
+  build-dir:
+    description: "Path to the directory containing the built kernel"
+    value: ${{ github.workspace }}/build
 
 runs:
   using: composite
@@ -125,14 +125,3 @@ runs:
       with:
         path: build/
         key: linux-kernel-${{ steps.configure.outputs.inputs-hash }}
-    - uses: actions/upload-artifact@v7
-      id: upload-linux-kernel
-      # TODO: Having a single path/name may be problematic should we
-      #       ever opt to reusing this action multiple times with
-      #       different inputs.
-      with:
-        name: linux-kernel
-        if-no-files-found: error
-        # The kernel image is already compressed.
-        compression-level: 0
-        path: build/
