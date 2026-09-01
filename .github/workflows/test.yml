@@ -31,7 +31,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Assemble kernel configuration
-        run: cat test/config.base ${{ matrix.fragments }} > test/config
+        run: cat test/config.base test/config.x86 ${{ matrix.fragments }} > test/config
       - name: Run build-linux action
         uses: ./
         id: build
@@ -85,7 +85,7 @@ jobs:
       - uses: actions/checkout@v7
       - name: Assemble kernel configuration
         run: |
-          cat test/config.base > test/config
+          cat test/config.base test/config.x86 > test/config
           # Make the cache key unique to this run, so that the first
           # invocation below is guaranteed to miss and to populate the
           # cache itself. Kconfig skips comment lines.
