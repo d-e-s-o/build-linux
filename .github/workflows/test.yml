@@ -45,6 +45,7 @@ jobs:
       - name: Verify build artifacts
         env:
           BUILD_DIR: ${{ steps.build.outputs.build-dir }}
+          KERNEL_IMAGE: ${{ steps.build.outputs.kernel-image }}
           VMLINUX: ${{ matrix.vmlinux }}
           MODULES: ${{ matrix.modules }}
           PATCHES: ${{ matrix.patches != '' }}
@@ -96,6 +97,7 @@ jobs:
       - name: Verify that the kernel was built
         env:
           BUILD_DIR: ${{ steps.build.outputs.build-dir }}
+          KERNEL_IMAGE: ${{ steps.build.outputs.kernel-image }}
         run: test/cache.sh miss
       - uses: ./
         id: rebuild
@@ -105,4 +107,5 @@ jobs:
       - name: Verify that the kernel came from the cache
         env:
           BUILD_DIR: ${{ steps.rebuild.outputs.build-dir }}
+          KERNEL_IMAGE: ${{ steps.rebuild.outputs.kernel-image }}
         run: test/cache.sh hit

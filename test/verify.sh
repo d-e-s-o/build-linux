@@ -3,14 +3,16 @@
 # Verify the artifacts that the action produced in its build directory.
 #
 # Inputs are provided via the environment, mirroring the action's inputs:
-#   BUILD_DIR  the action's `build-dir` output
-#   VMLINUX    whether the `vmlinux` input was set
-#   MODULES    whether the `modules` input was set
-#   PATCHES    whether the `patches` input was set
+#   BUILD_DIR     the action's `build-dir` output
+#   KERNEL_IMAGE  the action's `kernel-image` output
+#   VMLINUX       whether the `vmlinux` input was set
+#   MODULES       whether the `modules` input was set
+#   PATCHES       whether the `patches` input was set
 
 set -eu -o pipefail
 
 : "${BUILD_DIR:?}"
+: "${KERNEL_IMAGE:?}"
 : "${VMLINUX:=false}"
 : "${MODULES:=false}"
 : "${PATCHES:=false}"
@@ -23,10 +25,16 @@ fail() {
 [ -d "${BUILD_DIR}" ] || fail "build directory '${BUILD_DIR}' does not exist"
 
 # A kernel image is always expected, and it is never *that* small.
-image="${BUILD_DIR}/bzImage"
-[ -f "${image}" ] || fail "no bzImage in '${BUILD_DIR}'"
+image="${KERNEL_IMAGE}"
+# The two outputs have to keep agreeing with each other; nothing else
+# would notice them drifting apart.
+case "${image}" in
+  "${BUILD_DIR}"/*) ;;
+  *) fail "kernel image '${image}' is not inside '${BUILD_DIR}'" ;;
+esac
+[ -f "${image}" ] || fail "no kernel image at '${image}'"
 size=$(stat --format=%s "${image}")
-[ "${size}" -gt $((256 * 1024)) ] || fail "bzImage is suspiciously small (${size} bytes)"
+[ "${size}" -gt $((256 * 1024)) ] || fail "kernel image is suspiciously small (${size} bytes)"
 
 if [ "${VMLINUX}" = "true" ]; then
   # `make install` places these, `vmlinux` itself is copied alongside.

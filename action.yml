@@ -31,6 +31,9 @@ outputs:
   build-dir:
     description: "Path to the directory containing the built kernel"
     value: ${{ github.workspace }}/build
+  kernel-image:
+    description: "Path to the bootable kernel image"
+    value: ${{ github.workspace }}/build/${{ steps.configure.outputs.image }}
 
 runs:
   using: composite
@@ -38,7 +41,11 @@ runs:
     - id: configure
       shell: bash
       run: |
-        targets="bzImage"
+        # The kernel image to build.
+        image=bzImage
+        echo "image=${image}" >> $GITHUB_OUTPUT
+
+        targets="${image}"
         if [ "${{ inputs.vmlinux }}" = "true" ]; then
           targets="${targets} vmlinux"
         fi
@@ -122,7 +129,8 @@ runs:
           rm -f "${build}/lib/modules"/*/build "${build}/lib/modules"/*/source
         fi
 
-        cp "${KBUILD_OUTPUT}/arch/x86/boot/bzImage" "${build}/bzImage"
+        cp "${KBUILD_OUTPUT}/arch/x86/boot/bzImage" \
+          "${build}/${{ steps.configure.outputs.image }}"
         popd
     - if: steps.restore-cached-kernel.outputs.cache-hit != 'true' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
       uses: actions/cache/save@v6

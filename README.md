@@ -48,11 +48,14 @@ Outputs
 -------
 
 - `build-dir`: path to the directory containing the built kernel.
+- `kernel-image`: path to the bootable kernel image, inside
+  `build-dir`.
 
-The directory always contains the `bzImage`. With `vmlinux` enabled it
-also contains a `boot/` directory with what `make install` places there
-(`vmlinuz-<release>`, `System.map-<release>`) next to the uncompressed
-`vmlinux-<release>`. With `modules` enabled it contains
+The directory always contains the kernel image that `kernel-image`
+points at (`bzImage`, as an `x86_64` runner is assumed). With `vmlinux`
+enabled it also contains a `boot/` directory with what `make install`
+places there (`vmlinuz-<release>`, `System.map-<release>`) next to the
+uncompressed `vmlinux-<release>`. With `modules` enabled it contains
 `lib/modules/<release>/`.
 
 Caching

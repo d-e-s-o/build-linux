@@ -8,15 +8,17 @@
 # argument ("miss" or "hit").
 #
 # Inputs are provided via the environment:
-#   BUILD_DIR  the action's `build-dir` output
+#   BUILD_DIR     the action's `build-dir` output
+#   KERNEL_IMAGE  the action's `kernel-image` output
 
 set -eu -o pipefail
 
 : "${BUILD_DIR:?}"
+: "${KERNEL_IMAGE:?}"
 
 state=${1:?}
 # Kept outside of the build directory, which is wiped below.
-checksum=bzImage.sha256
+checksum=image.sha256
 
 fail() {
   echo "::error::${1}"
@@ -28,8 +30,8 @@ case "${state}" in
     # The kernel source is only ever checked out for a build that
     # actually runs, which makes its presence the signal to go by.
     [ -d linux ] || fail "no kernel source tree; no build appears to have run"
-    [ -f "${BUILD_DIR}/bzImage" ] || fail "no bzImage was built"
-    sha256sum "${BUILD_DIR}/bzImage" | cut -d' ' -f1 > "${checksum}"
+    [ -f "${KERNEL_IMAGE}" ] || fail "no kernel image was built"
+    sha256sum "${KERNEL_IMAGE}" | cut -d' ' -f1 > "${checksum}"
 
     # Remove everything that the next invocation could conceivably
     # reuse, so that whatever it comes up with has to have come from
@@ -38,12 +40,12 @@ case "${state}" in
     ;;
   hit)
     [ ! -e linux ] || fail "kernel source was checked out; the kernel was built again"
-    [ -f "${BUILD_DIR}/bzImage" ] || fail "no bzImage was restored from the cache"
+    [ -f "${KERNEL_IMAGE}" ] || fail "no kernel image was restored from the cache"
 
     before=$(cat "${checksum}")
-    after=$(sha256sum "${BUILD_DIR}/bzImage" | cut -d' ' -f1)
+    after=$(sha256sum "${KERNEL_IMAGE}" | cut -d' ' -f1)
     [ "${before}" = "${after}" ] \
-      || fail "restored bzImage differs from the built one (${after} != ${before})"
+      || fail "restored kernel image differs from the built one (${after} != ${before})"
     ;;
   *)
     fail "unexpected cache state '${state}'"
