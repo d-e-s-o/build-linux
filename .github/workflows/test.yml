@@ -32,7 +32,8 @@ jobs:
       - uses: actions/checkout@v7
       - name: Assemble kernel configuration
         run: cat test/config.base ${{ matrix.fragments }} > test/config
-      - uses: ./
+      - name: Run build-linux action
+        uses: ./
         id: build
         with:
           # Pin the kernel, so that runs are reproducible and can share
@@ -89,7 +90,8 @@ jobs:
           # invocation below is guaranteed to miss and to populate the
           # cache itself. Kconfig skips comment lines.
           echo "#run-${{ github.run_id }}-${{ github.run_attempt }}" >> test/config
-      - uses: ./
+      - name: Run build-linux action
+        uses: ./
         id: build
         with:
           rev: v7.1
@@ -99,7 +101,8 @@ jobs:
           BUILD_DIR: ${{ steps.build.outputs.build-dir }}
           KERNEL_IMAGE: ${{ steps.build.outputs.kernel-image }}
         run: test/cache.sh miss
-      - uses: ./
+      - name: Run build-linux action
+        uses: ./
         id: rebuild
         with:
           rev: v7.1
