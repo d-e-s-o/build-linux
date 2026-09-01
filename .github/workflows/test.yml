@@ -1,0 +1,73 @@
+name: Test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: Test (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: vmlinux
+            vmlinux: 'true'
+            modules: 'false'
+            patches: ''
+            fragments: ''
+          - name: modules
+            vmlinux: 'true'
+            modules: 'true'
+            patches: ''
+            fragments: 'test/config.modules'
+          - name: patches
+            vmlinux: 'true'
+            modules: 'false'
+            patches: 'test/patches/*.patch'
+            fragments: ''
+    steps:
+      - uses: actions/checkout@v7
+      - name: Assemble kernel configuration
+        run: cat test/config.base ${{ matrix.fragments }} > test/config
+      - uses: ./
+        id: build
+        with:
+          # Pin the kernel, so that runs are reproducible and can share
+          # caches.
+          rev: v7.1
+          config: test/config
+          vmlinux: ${{ matrix.vmlinux }}
+          modules: ${{ matrix.modules }}
+          patches: ${{ matrix.patches }}
+      - name: Verify build artifacts
+        env:
+          BUILD_DIR: ${{ steps.build.outputs.build-dir }}
+          VMLINUX: ${{ matrix.vmlinux }}
+          MODULES: ${{ matrix.modules }}
+          PATCHES: ${{ matrix.patches != '' }}
+        run: test/verify.sh
+      - uses: d-e-s-o/vmsh@78e243d13c86175a4420dd9057a723a24a7b398e
+      - name: Boot kernel
+        timeout-minutes: 10
+        env:
+          BUILD_DIR: ${{ steps.build.outputs.build-dir }}
+        run: |
+          vmlinux=$(echo "${BUILD_DIR}"/boot/vmlinux-*)
+          release=$(basename "${vmlinux}")
+          release=${release#vmlinux-}
+
+          if [ -n "${{ matrix.patches }}" ]; then
+            # test/patches/0001-* adds a localversion file, which kbuild
+            # folds into the release string.
+            case "${release}" in
+              *-patched*) ;;
+              *) echo "::error::release '${release}' lacks the patch marker"; exit 1 ;;
+            esac
+          fi
+
+          vmsh --cpus=1 --memory=1024 --kernel "${vmlinux}" \
+            --env=HOME --env=PATH \
+            -- sh -c "cd '${GITHUB_WORKSPACE}' && test/smoke.sh '${BUILD_DIR}' '${release}' '${{ matrix.modules }}'"
