@@ -14,6 +14,10 @@ inputs:
   config:
     description: 'Path to the kernel configuration to use.'
     required: true
+  arch:
+    description: 'The architecture to build for, as understood by the kernel build system.'
+    default: 'x86'
+    required: false
   vmlinux:
     description: 'Whether to include vmlinux in the artifacts.'
     default: 'false'
@@ -41,8 +45,13 @@ runs:
     - id: configure
       shell: bash
       run: |
-        # The kernel image to build.
-        image=bzImage
+        # The kernel image to build, which is named differently on each
+        # architecture.
+        case "${{ inputs.arch }}" in
+          x86) image=bzImage ;;
+          arm64) image=Image ;;
+          *) echo "::error::Unsupported architecture '${{ inputs.arch }}'"; exit 1 ;;
+        esac
         echo "image=${image}" >> $GITHUB_OUTPUT
 
         targets="${image}"
@@ -58,7 +67,7 @@ runs:
         #     only covers files inside GITHUB_WORKSPACE, whereas the
         #     action resides in a sibling directory.
         action_hash=$(sha256sum "${{ github.action_path }}/action.yml" | cut -d' ' -f1)
-        inputs_hash=$(echo "${action_hash} ${{ inputs.kernel-repo }} ${{ hashFiles(inputs.config) }} ${{ inputs.rev }} ${{ hashFiles(inputs.patches) }} ${{ inputs.vmlinux }} ${{ inputs.modules }}" | sha256sum | cut -d' ' -f1)
+        inputs_hash=$(echo "${action_hash} ${{ inputs.kernel-repo }} ${{ hashFiles(inputs.config) }} ${{ inputs.arch }} ${{ inputs.rev }} ${{ hashFiles(inputs.patches) }} ${{ inputs.vmlinux }} ${{ inputs.modules }}" | sha256sum | cut -d' ' -f1)
         echo "inputs-hash=${inputs_hash}" >> $GITHUB_OUTPUT
     - uses: actions/cache/restore@v6
       id: restore-cached-kernel
@@ -108,11 +117,13 @@ runs:
         config=$(readlink --canonicalize-existing ${{ inputs.config }})
         build=$(pwd)/build
         kbuild=$(pwd)/kbuild
+        image=${{ steps.configure.outputs.image }}
 
         pushd linux/
         export KBUILD_OUTPUT="${kbuild}"
-        # Exported, as it has to reach every `make` invocation below.
+        # Exported, as they have to reach every `make` invocation below.
         export LLVM=1
+        export ARCH="${{ inputs.arch }}"
         mkdir "${KBUILD_OUTPUT}"
 
         KCONFIG_ALLCONFIG="${config}" make O="${KBUILD_OUTPUT}" allnoconfig
@@ -134,8 +145,7 @@ runs:
           rm -f "${build}/lib/modules"/*/build "${build}/lib/modules"/*/source
         fi
 
-        cp "${KBUILD_OUTPUT}/arch/x86/boot/bzImage" \
-          "${build}/${{ steps.configure.outputs.image }}"
+        cp "${KBUILD_OUTPUT}/arch/${ARCH}/boot/${image}" "${build}/${image}"
         popd
     - if: steps.restore-cached-kernel.outputs.cache-hit != 'true' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
       uses: actions/cache/save@v6
