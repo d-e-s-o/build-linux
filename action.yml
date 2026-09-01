@@ -96,8 +96,11 @@ runs:
       shell: bash
       run: |
         sudo apt-get update
-        # `pahole` may be required, depending on the config in use.
-        sudo apt-get install --yes --no-install-recommends libelf-dev pahole
+        # `LLVM=1` pulls in the full set of LLVM tools, not just the
+        # compiler. `pahole` may be required, depending on the config in
+        # use.
+        sudo apt-get install --yes --no-install-recommends \
+          clang lld llvm libelf-dev pahole
     - if: steps.restore-cached-kernel.outputs.cache-hit != 'true'
       name: Build kernel
       shell: bash
@@ -108,6 +111,8 @@ runs:
 
         pushd linux/
         export KBUILD_OUTPUT="${kbuild}"
+        # Exported, as it has to reach every `make` invocation below.
+        export LLVM=1
         mkdir "${KBUILD_OUTPUT}"
 
         KCONFIG_ALLCONFIG="${config}" make O="${KBUILD_OUTPUT}" allnoconfig
