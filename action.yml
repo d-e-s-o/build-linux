@@ -51,7 +51,7 @@ runs:
         #     only covers files inside GITHUB_WORKSPACE, whereas the
         #     action resides in a sibling directory.
         action_hash=$(sha256sum "${{ github.action_path }}/action.yml" | cut -d' ' -f1)
-        inputs_hash=$(echo "${action_hash} ${{ hashFiles(inputs.config) }} ${{ inputs.rev }} ${{ hashFiles(inputs.patches) }} ${{ inputs.vmlinux }} ${{ inputs.modules }}" | sha256sum | cut -d' ' -f1)
+        inputs_hash=$(echo "${action_hash} ${{ inputs.kernel-repo }} ${{ hashFiles(inputs.config) }} ${{ inputs.rev }} ${{ hashFiles(inputs.patches) }} ${{ inputs.vmlinux }} ${{ inputs.modules }}" | sha256sum | cut -d' ' -f1)
         echo "inputs-hash=${inputs_hash}" >> $GITHUB_OUTPUT
     - uses: actions/cache/restore@v6
       id: restore-cached-kernel
