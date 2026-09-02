@@ -1,0 +1,8 @@
+# arm64 specific part of the minimal kernel configuration described in
+# config.base. The architecture already selects the interrupt
+# controller, timer and AMBA bus support it needs, so only the console
+# and the host bridge remain.
+
+CONFIG_SERIAL_AMBA_PL011=y
+CONFIG_SERIAL_AMBA_PL011_CONSOLE=y
+CONFIG_PCI_HOST_GENERIC=y

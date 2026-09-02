@@ -14,24 +14,35 @@ jobs:
       matrix:
         include:
           - name: vmlinux
+            arch: x86
             vmlinux: 'true'
             modules: 'false'
             patches: ''
             fragments: ''
           - name: modules
+            arch: x86
             vmlinux: 'true'
             modules: 'true'
             patches: ''
             fragments: 'test/config.modules'
           - name: patches
+            arch: x86
             vmlinux: 'true'
             modules: 'false'
             patches: 'test/patches/*.patch'
             fragments: ''
+          # Modules are built here as well, as installing them is the
+          # part of the cross build most likely to go wrong.
+          - name: arm64
+            arch: arm64
+            vmlinux: 'true'
+            modules: 'true'
+            patches: ''
+            fragments: 'test/config.modules'
     steps:
       - uses: actions/checkout@v7
       - name: Assemble kernel configuration
-        run: cat test/config.base test/config.x86 ${{ matrix.fragments }} > test/config
+        run: cat test/config.base test/config.${{ matrix.arch }} ${{ matrix.fragments }} > test/config
       - name: Run build-linux action
         uses: ./
         id: build
@@ -40,6 +51,7 @@ jobs:
           # caches.
           rev: v7.1
           config: test/config
+          arch: ${{ matrix.arch }}
           vmlinux: ${{ matrix.vmlinux }}
           modules: ${{ matrix.modules }}
           patches: ${{ matrix.patches }}
@@ -51,8 +63,12 @@ jobs:
           MODULES: ${{ matrix.modules }}
           PATCHES: ${{ matrix.patches != '' }}
         run: test/verify.sh
-      - uses: d-e-s-o/vmsh@78e243d13c86175a4420dd9057a723a24a7b398e
+      # vmsh boots the kernel using KVM, which rules out anything that
+      # was not built for the runner's own architecture.
+      - if: matrix.arch == 'x86'
+        uses: d-e-s-o/vmsh@78e243d13c86175a4420dd9057a723a24a7b398e
       - name: Boot kernel
+        if: matrix.arch == 'x86'
         timeout-minutes: 10
         env:
           BUILD_DIR: ${{ steps.build.outputs.build-dir }}
