@@ -24,7 +24,9 @@ workspace.
 
 The build happens on the runner itself, using `apt-get` to install the
 handful of tools that may be required. An `x86_64` Ubuntu runner is
-assumed.
+assumed. Kernels are built with Clang, which cross compiles to any of
+its backends without an additional toolchain, so `arch` may name a
+target other than the runner's own.
 
 Inputs
 ------
@@ -32,6 +34,9 @@ Inputs
 - `config` (required): path to the kernel configuration to use. It is
   applied on top of `allnoconfig`, so any option not mentioned in it
   ends up disabled.
+- `arch`: the architecture to build for, spelled the way the kernel
+  build system spells it. Supported values are `x86` and `arm64`.
+  Defaults to `x86`.
 - `kernel-repo`: the Linux kernel repository to build. Defaults to
   `torvalds/linux`.
 - `rev`: the revision to build at. Defaults to the default branch's
@@ -52,11 +57,12 @@ Outputs
   `build-dir`.
 
 The directory always contains the kernel image that `kernel-image`
-points at (`bzImage`, as an `x86_64` runner is assumed). With `vmlinux`
+points at (`bzImage` on `x86`, `Image` on `arm64`). With `vmlinux`
 enabled it also contains a `boot/` directory with what `make install`
 places there (`vmlinuz-<release>`, `System.map-<release>`) next to the
-uncompressed `vmlinux-<release>`. With `modules` enabled it contains
-`lib/modules/<release>/`.
+uncompressed `vmlinux-<release>`. Note that on `arm64` the installed
+`vmlinuz-<release>` is uncompressed, despite the name. With `modules`
+enabled the directory contains `lib/modules/<release>/`.
 
 Caching
 -------
