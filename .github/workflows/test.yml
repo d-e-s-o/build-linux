@@ -51,7 +51,7 @@ jobs:
           MODULES: ${{ matrix.modules }}
           PATCHES: ${{ matrix.patches != '' }}
         run: test/verify.sh
-      - uses: d-e-s-o/vmsh@ab79c9d1dff39872a7583391d0ae6ee4d1b82741
+      - uses: d-e-s-o/vmsh@1b8a8532dcdc2d52eb8d16958ef741088c93317b
       - name: Boot kernel
         timeout-minutes: 10
         env:
